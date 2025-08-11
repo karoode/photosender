@@ -1,4 +1,3 @@
-# app.py
 import os, json
 from flask import Flask, request, jsonify
 import requests
@@ -23,7 +22,6 @@ def send_text(to, text):
         "text": {"body": text}
     }
     r = requests.post(url, headers=headers, json=payload, timeout=30)
-    # Optional: log errors
     try:
         r.raise_for_status()
     except requests.HTTPError:
@@ -32,7 +30,6 @@ def send_text(to, text):
 
 @app.route("/webhook", methods=["GET"])
 def verify():
-    # Meta calls this to verify your endpoint
     mode = request.args.get("hub.mode")
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
@@ -43,18 +40,28 @@ def verify():
 @app.route("/webhook", methods=["POST"])
 def inbound():
     data = request.get_json(silent=True, force=True) or {}
-    # Expected payload structure (simplified):
-    # entry[0].changes[0].value.messages[0]
+
+    # 🔹 Log the entire request for debugging
+    print("=== Incoming Webhook Data ===")
+    print(json.dumps(data, indent=2))
+    print("=============================")
+
     try:
         changes = data.get("entry", [])[0].get("changes", [])[0]
         value = changes.get("value", {})
+
+        # 🔹 Make sure message belongs to THIS bot
+        incoming_phone_id = value.get("metadata", {}).get("phone_number_id")
+        if incoming_phone_id != PHONE_NUMBER_ID:
+            print(f"Ignored message for phone_number_id {incoming_phone_id}")
+            return jsonify(status="ignored"), 200
+
         messages = value.get("messages", [])
         if messages:
             msg = messages[0]
             from_wa = msg.get("from")
             t = msg.get("text", {}).get("body", "") if msg.get("type") == "text" else ""
             if from_wa:
-                # Simple bot logic:
                 if t.strip().lower() == "hello":
                     send_text(from_wa, "Welcome 👋")
                 else:
