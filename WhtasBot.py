@@ -5,6 +5,7 @@ import requests
 VERIFY_TOKEN = os.environ["VERIFY_TOKEN"]
 WHATSAPP_TOKEN = os.environ["WHATSAPP_TOKEN"]
 PHONE_NUMBER_ID = os.environ["PHONE_NUMBER_ID"]
+MY_WHATSAPP = os.environ["MY_WHATSAPP"]  # e.g., "9647XXXXXXXX"
 GRAPH_VERSION = os.getenv("GRAPH_VERSION", "v21.0")
 
 app = Flask(__name__)
@@ -28,6 +29,28 @@ def send_text(to, text):
         print("Send error:", r.status_code, r.text)
     return r.json() if r.content else {}
 
+def send_image(to, image_url, caption=""):
+    url = f"https://graph.facebook.com/{GRAPH_VERSION}/{PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "image",
+        "image": {
+            "link": image_url,
+            "caption": caption
+        }
+    }
+    r = requests.post(url, headers=headers, json=payload, timeout=30)
+    try:
+        r.raise_for_status()
+    except requests.HTTPError:
+        print("Send error:", r.status_code, r.text)
+    return r.json() if r.content else {}
+
 @app.route("/webhook", methods=["GET"])
 def verify():
     mode = request.args.get("hub.mode")
@@ -41,7 +64,6 @@ def verify():
 def inbound():
     data = request.get_json(silent=True, force=True) or {}
 
-    # 🔹 Log the entire request for debugging
     print("=== Incoming Webhook Data ===")
     print(json.dumps(data, indent=2))
     print("=============================")
@@ -49,8 +71,6 @@ def inbound():
     try:
         changes = data.get("entry", [])[0].get("changes", [])[0]
         value = changes.get("value", {})
-
-        # 🔹 Make sure message belongs to THIS bot
         incoming_phone_id = value.get("metadata", {}).get("phone_number_id")
         if incoming_phone_id != PHONE_NUMBER_ID:
             print(f"Ignored message for phone_number_id {incoming_phone_id}")
@@ -70,10 +90,27 @@ def inbound():
         print("Parse error:", e, json.dumps(data))
     return jsonify(status="ok"), 200
 
+@app.route("/send-image", methods=["POST"])
+def upload_and_send_image():
+    """Receive an image file from CMD/curl and send it to MY_WHATSAPP."""
+    if 'file' not in request.files:
+        return jsonify(error="No file uploaded"), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify(error="Empty filename"), 400
+
+    # Save locally
+    save_path = os.path.join("/tmp", file.filename)
+    file.save(save_path)
+
+    # Option 1: Upload to free file host (imgbb, cloud, or your own hosting)
+    # For now, assume Render can serve static from /tmp
+    image_url = f"{request.url_root}static/{file.filename}"  # You'll need static hosting configured
+
+    # Send to your WhatsApp
+    result = send_image(MY_WHATSAPP, image_url, caption="Here’s your image 📷")
+    return jsonify(result)
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
-
-
-
-2/2
-
