@@ -1,6 +1,7 @@
 import os
 import requests
 from flask import Flask, request, jsonify
+import mimetypes
 
 VERIFY_TOKEN = os.environ["VERIFY_TOKEN"]
 WHATSAPP_TOKEN = os.environ["WHATSAPP_TOKEN"]
@@ -13,14 +14,16 @@ app = Flask(__name__)
 def upload_media(file_path):
     print(f"DEBUG: WHATSAPP_TOKEN length = {len(WHATSAPP_TOKEN)}")
     url = f"https://graph.facebook.com/{GRAPH_VERSION}/{PHONE_NUMBER_ID}/media"
+    mime_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
     headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}"}
-    files = {'file': open(file_path, 'rb')}
+    files = {
+        'file': (os.path.basename(file_path), open(file_path, 'rb'), mime_type)
+    }
     data = {"messaging_product": "whatsapp"}
     resp = requests.post(url, headers=headers, files=files, data=data)
     print("DEBUG: Upload response:", resp.text)
     resp.raise_for_status()
     return resp.json()["id"]
-
 
 def send_media(media_id):
     """Send media by ID to MY_WHATSAPP."""
