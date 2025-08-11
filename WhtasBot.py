@@ -11,14 +11,16 @@ GRAPH_VERSION = os.getenv("GRAPH_VERSION", "v21.0")
 app = Flask(__name__)
 
 def upload_media(file_path):
-    """Upload file to WhatsApp and return media ID."""
+    print(f"DEBUG: WHATSAPP_TOKEN length = {len(WHATSAPP_TOKEN)}")
     url = f"https://graph.facebook.com/{GRAPH_VERSION}/{PHONE_NUMBER_ID}/media"
     headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}"}
     files = {'file': open(file_path, 'rb')}
     data = {"messaging_product": "whatsapp"}
     resp = requests.post(url, headers=headers, files=files, data=data)
+    print("DEBUG: Upload response:", resp.text)
     resp.raise_for_status()
     return resp.json()["id"]
+
 
 def send_media(media_id):
     """Send media by ID to MY_WHATSAPP."""
