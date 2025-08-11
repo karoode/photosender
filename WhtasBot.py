@@ -6,7 +6,6 @@ import mimetypes
 VERIFY_TOKEN = os.environ["VERIFY_TOKEN"]
 WHATSAPP_TOKEN = os.environ["WHATSAPP_TOKEN"]
 PHONE_NUMBER_ID = os.environ["PHONE_NUMBER_ID"]
-MY_WHATSAPP = os.environ["MY_WHATSAPP"]
 GRAPH_VERSION = os.getenv("GRAPH_VERSION", "v21.0")
 
 app = Flask(__name__)
@@ -25,8 +24,8 @@ def upload_media(file_path):
     resp.raise_for_status()
     return resp.json()["id"]
 
-def send_media(media_id):
-    """Send media by ID to MY_WHATSAPP."""
+def send_media(media_id, to_number):
+    """Send media by ID to a specific phone number."""
     url = f"https://graph.facebook.com/{GRAPH_VERSION}/{PHONE_NUMBER_ID}/messages"
     headers = {
         "Authorization": f"Bearer {WHATSAPP_TOKEN}",
@@ -34,7 +33,7 @@ def send_media(media_id):
     }
     payload = {
         "messaging_product": "whatsapp",
-        "to": MY_WHATSAPP,
+        "to": to_number,
         "type": "image",
         "image": {"id": media_id}
     }
@@ -44,16 +43,18 @@ def send_media(media_id):
 
 @app.route("/send-image", methods=["POST"])
 def send_image():
-    if "file" not in request.files:
-        return jsonify(error="No file uploaded"), 400
+    if "file" not in request.files or "to" not in request.form:
+        return jsonify(error="Missing file or 'to' parameter"), 400
 
+    to_number = request.form["to"].strip()
     file = request.files["file"]
+
     tmp_path = os.path.join("/tmp", file.filename)
     file.save(tmp_path)
 
     try:
         media_id = upload_media(tmp_path)
-        result = send_media(media_id)
+        result = send_media(media_id, to_number)
         return jsonify(result)
     except Exception as e:
         return jsonify(error=str(e)), 500
